@@ -2,6 +2,10 @@
 
 A tiny macOS menu-bar app that records your calls (Zoom, Google Meet, Teams, Slack huddles, anything) and transcribes them on your Mac, with each line labelled **Me** or **Them**.
 
+![Recording a call from the menu bar](docs/menu-demo.gif)
+
+([MP4 version](docs/menu-demo.mp4))
+
 ## Why
 
 Most call recorders join the meeting as a bot, upload your audio to someone's cloud, or only work with one app. Minutes does none of that:
@@ -10,6 +14,8 @@ Most call recorders join the meeting as a bot, upload your audio to someone's cl
 - **Stays on your Mac.** Recording and transcription run locally with [whisper.cpp](https://github.com/ggml-org/whisper.cpp). No account, no upload.
 - **Knows who said what.** Your mic and the call are captured as separate tracks, so the transcript says "Me" or "Them" with a timestamp on each line.
 - **Out of the way.** One click in the menu bar to start and stop. You get a `.m4a` and a `.txt` in `~/Recordings`.
+
+A transcript looks like this:
 
 ```
 [00:00:03] Them: Hi team, thanks for joining. Let's start with the roadmap update.
