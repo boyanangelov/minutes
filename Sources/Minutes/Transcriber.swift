@@ -16,7 +16,7 @@ final class Transcriber {
     static let vadDownloadURL = URL(string: "https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v5.1.2.bin")!
 
     static let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        .appendingPathComponent("CallRecorder", isDirectory: true)
+        .appendingPathComponent("Minutes", isDirectory: true)
     static var modelURL: URL { supportDir.appendingPathComponent(modelName) }
     static var vadModelURL: URL { supportDir.appendingPathComponent(vadModelName) }
 
@@ -27,7 +27,7 @@ final class Transcriber {
 
     /// Number of queued or running jobs. Main thread only.
     private(set) var pending = 0
-    private let queue = DispatchQueue(label: "callrecorder.transcribe", qos: .utility)
+    private let queue = DispatchQueue(label: "minutes.transcribe", qos: .utility)
     private let processLock = NSLock()
     private var current: Process?
 
@@ -101,7 +101,7 @@ final class Transcriber {
         let fm = FileManager.default
         if fm.fileExists(atPath: destination.path) { return }
         try fm.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
-        NSLog("CallRecorder: downloading %@", destination.lastPathComponent)
+        NSLog("Minutes: downloading %@", destination.lastPathComponent)
 
         let done = DispatchSemaphore(value: 0)
         var failure: Error?

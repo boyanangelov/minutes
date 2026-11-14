@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key>
-    <string>local.callrecorder.app</string>
+    <string>io.github.boyanangelov.minutes</string>
     <key>CFBundleName</key>
-    <string>Call Recorder</string>
+    <string>Minutes</string>
     <key>CFBundleDisplayName</key>
-    <string>Call Recorder</string>
+    <string>Minutes</string>
     <key>CFBundleExecutable</key>
-    <string>CallRecorder</string>
+    <string>Minutes</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
@@ -21,8 +21,8 @@
     <key>LSUIElement</key>
     <true/>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Call Recorder records your microphone so your side of the call is included in the recording.</string>
+    <string>Minutes records your microphone so your side of the call is included in the recording.</string>
     <key>NSAudioCaptureUsageDescription</key>
-    <string>Call Recorder records system audio so the other participants of your call (Zoom, Meet, Teams, Slack…) are included in the recording.</string>
+    <string>Minutes records system audio so the other participants of your call (Zoom, Meet, Teams, Slack…) are included in the recording.</string>
 </dict>
 </plist>

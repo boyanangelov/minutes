@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var keepTracksItem: NSMenuItem!
     private var transcribeItem: NSMenuItem!
     private var transcribingItem: NSMenuItem!
+    private var loginItem: NSMenuItem!
     private let transcriber = Transcriber()
 
     private var system: SystemAudioCapture?
@@ -57,9 +58,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let args = CommandLine.arguments
         if let i = args.firstIndex(of: "--selftest"), i + 1 < args.count, let secs = Double(args[i + 1]) {
             selfTestSeconds = secs
-            NSLog("CallRecorder: selftest %.0fs starting", secs)
+            NSLog("Minutes: selftest %.0fs starting", secs)
             DispatchQueue.main.asyncAfter(deadline: .now() + secs + 60) {
-                NSLog("CallRecorder: selftest watchdog fired, exiting")
+                NSLog("Minutes: selftest watchdog fired, exiting")
                 exit(2)
             }
             requestMicThenStart()
@@ -132,8 +133,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         transcribeItem.target = self
         menu.addItem(transcribeItem)
 
+        loginItem = NSMenuItem(title: "Start at Login", action: #selector(toggleLogin), keyEquivalent: "")
+        loginItem.target = self
+        menu.addItem(loginItem)
+
         menu.addItem(.separator())
-        let quit = NSMenuItem(title: "Quit Call Recorder", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let quit = NSMenuItem(title: "Quit Minutes", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.addItem(quit)
     }
 
@@ -179,7 +184,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         case .recording: symbol = "record.circle.fill"
         case .starting, .processing: symbol = "hourglass.circle"
         }
-        let image = NSImage(systemSymbolName: symbol, accessibilityDescription: "Call Recorder")
+        let image = NSImage(systemSymbolName: symbol, accessibilityDescription: "Minutes")
         let elapsed = Date().timeIntervalSince(startDate)
         let systemProblem = system == nil || (elapsed > 15 && (system?.level.maxSeen ?? 0) == 0)
         let micSilentFor = mic?.level.secondsSinceSignal ?? .infinity
@@ -238,6 +243,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             lastItem.isHidden = true
         }
         keepTracksItem.state = keepTracks ? .on : .off
+        loginItem.state = LoginItem.isEnabled ? .on : .off
         if Transcriber.whisperPath == nil {
             transcribeItem.title = "Transcription needs whisper.cpp: brew install whisper-cpp"
             transcribeItem.isEnabled = false
@@ -297,7 +303,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard state == .idle else { return }
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd HH-mm-ss"
-        sessionName = "Call \(formatter.string(from: Date()))"
+        sessionName = "Minutes \(formatter.string(from: Date()))"
         tempDir = Self.recordingsFolder.appendingPathComponent(".in-progress/\(UUID().uuidString)", isDirectory: true)
         try? FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
 
@@ -313,14 +319,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 guard useMic else { return nil }
                 let m = MicCapture()
                 do { try m.start(writingTo: dir.appendingPathComponent("mic.caf")); return m } catch {
-                    NSLog("CallRecorder: mic capture failed: \(error)")
+                    NSLog("Minutes: mic capture failed: \(error)")
                     return nil
                 }
             }
             func startSystem() -> SystemAudioCapture? {
                 let sys = SystemAudioCapture()
                 do { try sys.start(writingTo: dir.appendingPathComponent("system.caf")); return sys } catch {
-                    NSLog("CallRecorder: system capture failed: \(error)")
+                    NSLog("Minutes: system capture failed: \(error)")
                     return nil
                 }
             }
@@ -394,7 +400,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
             let sysPeak = sys?.level.maxSeen ?? -1
             let micPeak = m?.level.maxSeen ?? -1
-            NSLog("CallRecorder: stopped. system max peak %.4f (tap restarts: %d), mic max peak %.4f, mic delay %.3fs",
+            NSLog("Minutes: stopped. system max peak %.4f (tap restarts: %d), mic max peak %.4f, mic delay %.3fs",
                   sysPeak, sys?.restarts ?? 0, micPeak, micDelay)
 
             var result: Result<URL, Error>
@@ -411,14 +417,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                         do {
                             try Mixer.exportSpeechWAV(source: sysURL, leadingSeconds: max(0, -micDelay), to: wav)
                             tracks.append(.init(label: "Them", wav: wav))
-                        } catch { NSLog("CallRecorder: export call track for transcription failed: \(error)") }
+                        } catch { NSLog("Minutes: export call track for transcription failed: \(error)") }
                     }
                     if let micURL, micPeak > 0 {
                         let wav = dir.appendingPathComponent("me.wav")
                         do {
                             try Mixer.exportSpeechWAV(source: micURL, leadingSeconds: max(0, micDelay), to: wav)
                             tracks.append(.init(label: "Me", wav: wav))
-                        } catch { NSLog("CallRecorder: export mic track for transcription failed: \(error)") }
+                        } catch { NSLog("Minutes: export mic track for transcription failed: \(error)") }
                     }
                     if !tracks.isEmpty {
                         job = .init(title: name, tracks: tracks,
@@ -450,14 +456,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 case .success(let url):
                     self.lastRecording = url
                     if let f = try? AVAudioFile(forReading: url) {
-                        NSLog("CallRecorder: saved %@ (%.2fs)", url.path, Double(f.length) / f.fileFormat.sampleRate)
+                        NSLog("Minutes: saved %@ (%.2fs)", url.path, Double(f.length) / f.fileFormat.sampleRate)
                     }
                     if !selfTest && (sys == nil || sysPeak == 0) {
                         self.showError("Call audio was not captured",
-                                       "The recording was saved, but the call side (system audio) is silent. Make sure Call Recorder is allowed under System Settings → Privacy & Security → Screen & System Audio Recording.")
+                                       "The recording was saved, but the call side (system audio) is silent. Make sure Minutes is allowed under System Settings → Privacy & Security → Screen & System Audio Recording.")
                     }
                 case .failure(let error):
-                    NSLog("CallRecorder: save failed: \(error)")
+                    NSLog("Minutes: save failed: \(error)")
                     if !selfTest {
                         self.showError("Couldn't save the mixed recording",
                                        "\(error)\n\nThe raw tracks were kept in:\n\(dir.path)")
@@ -468,13 +474,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     self.transcriber.enqueue(job) { r in
                         switch r {
                         case .success(let txt):
-                            NSLog("CallRecorder: transcript saved %@ (%.1fs)", txt.path, Date().timeIntervalSince(started))
+                            NSLog("Minutes: transcript saved %@ (%.1fs)", txt.path, Date().timeIntervalSince(started))
                         case .failure(let error):
-                            NSLog("CallRecorder: transcription failed: \(error)")
+                            NSLog("Minutes: transcription failed: \(error)")
                         }
                         self.updateUI()
                         if selfTest && self.transcriber.pending == 0 {
-                            NSLog("CallRecorder: selftest done")
+                            NSLog("Minutes: selftest done")
                             NSApp.terminate(nil)
                         }
                     }
@@ -482,7 +488,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 self.updateUI()
                 if selfTest {
                     if job == nil {
-                        NSLog("CallRecorder: selftest done")
+                        NSLog("Minutes: selftest done")
                         NSApp.terminate(nil)
                     }
                     return
@@ -523,6 +529,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func openRecent(_ sender: NSMenuItem) {
         if let url = sender.representedObject as? URL { NSWorkspace.shared.open(url) }
+    }
+
+    @objc private func toggleLogin() {
+        do {
+            try LoginItem.set(!LoginItem.isEnabled)
+        } catch {
+            NSAlert(error: error).runModal()
+        }
+        updateUI()
     }
 
     @objc private func toggleTranscribe() {

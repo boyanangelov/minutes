@@ -157,7 +157,7 @@ private final class SourceReader {
             }
             need -= got
             if status == .endOfStream || status == .error || got == 0 {
-                if let error { NSLog("CallRecorder: convert error \(error)") }
+                if let error { NSLog("Minutes: convert error \(error)") }
                 finished = true
             }
         }

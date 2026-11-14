@@ -1,98 +1,120 @@
-# Call Recorder
+# Minutes
 
-A tiny macOS menu bar app that records calls — Zoom, Google Meet, Teams, Slack huddles, anything —
-by capturing **all system audio** (the other participants) plus **your microphone**, and saving one
-mixed `.m4a` per call to `~/Recordings`.
+A tiny macOS menu-bar app that records your calls (Zoom, Google Meet, Teams, Slack huddles, anything) and transcribes them on your Mac, with each line labelled **Me** or **Them**.
 
-Requires macOS 14.4+. No dependencies, no Xcode project — just `swiftc`.
+## Why
 
-## Build & run
+Most call recorders join the meeting as a bot, upload your audio to someone's cloud, or only work with one app. Minutes does none of that:
 
-```sh
-./build.sh            # builds build/Call Recorder.app
-./build.sh --install  # also copies it to /Applications
-open "build/Call Recorder.app"
-```
-
-Always launch the `.app` (not the bare binary) — macOS reads the permission prompts from the bundle.
-
-## Use
-
-Click the waveform icon in the menu bar → **Start Recording** (⌘R while the menu is open).
-The icon turns red with a timer; the menu shows live levels for *Call* and *Mic*.
-**Stop Recording** mixes and saves `~/Recordings/Call YYYY-MM-DD HH-mm-ss.m4a`.
-
-- **Recent Recordings** / **Open Recordings Folder** — quick access.
-- **Also Keep Separate Mic/System Tracks** — keeps the raw `.caf` tracks next to the mix.
-- Quitting while recording finishes and saves the recording first.
-
-## Transcription (on-device)
-
-After each recording, a transcript `Call … .txt` is saved next to the `.m4a`, labelled by speaker:
+- **Works with every call app.** It records what your Mac plays (the other participants) plus your microphone, so there's nothing to install per app and no bot in the meeting.
+- **Stays on your Mac.** Recording and transcription run locally with [whisper.cpp](https://github.com/ggml-org/whisper.cpp). No account, no upload.
+- **Knows who said what.** Your mic and the call are captured as separate tracks, so the transcript says "Me" or "Them" with a timestamp on each line.
+- **Out of the way.** One click in the menu bar to start and stop. You get a `.m4a` and a `.txt` in `~/Recordings`.
 
 ```
 [00:00:03] Them: Hi team, thanks for joining. Let's start with the roadmap update.
 [00:00:09] Me: Sounds good, I'll share my screen.
 ```
 
-- Engine: [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (`brew install whisper-cpp`), Metal-accelerated on M1.
-- Model: **Whisper `tiny`, q5_1-quantised (~31 MB)**, the smallest Whisper model, multilingual.
-  Plus the Silero VAD model (<1 MB), which skips silence so Whisper doesn't hallucinate text in it.
-  Both are downloaded on first use to `~/Library/Application Support/CallRecorder/`.
-- Mic and call audio are transcribed separately, giving the "Me" / "Them" labels. Toggle it in the menu.
-- Speed: a few seconds per minute of audio on M1. Nothing leaves your Mac.
-- Language is auto-detected per track (from the first 30 s), so a call that switches languages midway
-  gets forced into the first one. Tiny is the least accurate Whisper: fine for gist and search, rough on names
-  and non-English. For better quality, drop `ggml-base-q5_1.bin` (~57 MB) or `ggml-small-q5_1.bin`
-  (~190 MB) into the folder above and change `modelName` in `Transcriber.swift`.
-- On laptop speakers (no headphones) the mic hears the call too, so some "Them" lines may also appear as "Me".
+Recording laws vary: let the people on the call know you're recording.
+
+## Download
+
+Grab `Minutes.zip` from the [latest release](https://github.com/boyanangelov/minutes/releases/latest), unzip it and move `Minutes.app` to Applications.
+
+The app isn't signed with an Apple Developer ID, so macOS blocks it the first time. To open it anyway: right-click the app and choose **Open**, or go to **System Settings ▸ Privacy & Security** and click **Open Anyway**. You can also clear the quarantine flag from a terminal:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/Minutes.app
+```
+
+For transcripts, also install whisper.cpp:
+
+```sh
+brew install whisper-cpp
+```
+
+The first transcript downloads the model (~32 MB) to `~/Library/Application Support/Minutes/`.
+
+## Requirements
+
+- An Apple Silicon Mac (M1 or later) running macOS 14.4 (Sonoma) or later. Earlier versions lack the Core Audio API for capturing system audio.
+- [Homebrew](https://brew.sh) `whisper-cpp` for transcription (optional; recording works without it)
+- To build from source: the Xcode Command Line Tools (`xcode-select --install`)
+
+## Build & run
+
+```sh
+./build.sh
+open build/Minutes.app
+```
+
+Always launch the `.app` rather than the bare binary: macOS reads the permission prompts from the app bundle.
+
+Click the waveform icon in the menu bar, then **Start Recording**. The icon turns red with a timer, and the menu shows live levels for *Call* and *Mic*. **Stop Recording** saves `~/Recordings/Minutes YYYY-MM-DD HH-mm-ss.m4a`, and the transcript `.txt` follows a few seconds later.
+
+- **Recent Recordings** / **Open Recordings Folder**: quick access to your files.
+- **Transcribe Recordings**: turn transcription on or off.
+- **Also Keep Separate Mic/System Tracks**: keep the raw `.caf` tracks next to the mix.
+- Quitting while recording saves the recording first.
 
 ## Permissions
 
-First recording triggers two prompts:
+The first recording asks for two permissions:
 
-1. **Microphone** — your voice.
-2. **System Audio Recording** (Privacy & Security → *Screen & System Audio Recording*) — the call.
-   Without it the tap silently records nothing; the menu shows a warning if no call audio is seen after 15 s.
+1. **Microphone**, for your voice.
+2. **System Audio Recording** (System Settings ▸ Privacy & Security ▸ *Screen & System Audio Recording*), for the call.
 
-The app is ad-hoc signed, so after rebuilding macOS may treat it as a new app. If permissions get stuck:
+Without the second one, macOS hands the app silence instead of an error. Minutes shows ⚠︎ in the menu bar if no call audio arrives in the first 15 seconds, and warns you when you stop.
+
+Do a short throwaway recording first to get through both prompts.
+
+## Start at login
+
+Tick **Start at Login** in the menu-bar menu. It writes a LaunchAgent (`~/Library/LaunchAgents/io.github.boyanangelov.minutes.plist`) pointing at the running copy of the app, and unticking removes it. The change applies from your next login.
+
+Or install it into `~/Applications` and register it for login in one go:
 
 ```sh
-tccutil reset Microphone local.callrecorder.app
-tccutil reset AudioCapture local.callrecorder.app
+./install.sh
 ```
+
+The script prints the uninstall command.
+
+## Transcription
+
+- **Engine:** whisper.cpp, Metal-accelerated on Apple Silicon. Transcribing takes a few seconds per minute of audio on an M1.
+- **Model:** Whisper `tiny`, quantised to q5_1 (~31 MB). It's the smallest Whisper model and handles many languages. A Silero voice-activity model (<1 MB) skips silences, so Whisper doesn't invent text in them.
+- **Language** is detected per track from the first 30 seconds, so a call that switches language midway is transcribed in the first one.
+- **Accuracy:** tiny is good for the gist and for search, but rough on names and non-English speech. For better transcripts, put `ggml-base-q5_1.bin` (~57 MB) or `ggml-small-q5_1.bin` (~190 MB) from [the whisper.cpp models](https://huggingface.co/ggerganov/whisper.cpp/tree/main) in `~/Library/Application Support/Minutes/` and change `modelName` in `Sources/Minutes/Transcriber.swift`.
+- **Speakers vs. headphones:** on laptop speakers your mic also hears the call, so some "Them" lines can show up again as "Me". Headphones avoid this.
 
 ## How it works
 
-- `SystemAudioCapture` — global Core Audio process tap (`CATapDescription`) inside a private
-  aggregate device; audio keeps playing normally. Written to CAF while recording.
-- `MicCapture` — `AVAudioEngine` input node, written to its own CAF (handles Bluetooth headsets
-  that drop to 16/24 kHz in call mode).
-- `Mixer` — on stop, resamples both to 48 kHz, aligns them by their first-buffer host timestamps,
-  sums, and encodes stereo AAC 128 kbps.
-- In-progress files live in `~/Recordings/.in-progress/`; if mixing fails, the raw tracks are kept there.
+- **Call audio:** a global Core Audio process tap (`CATapDescription`) inside a private aggregate device. Your audio keeps playing normally.
+- **Your voice:** `AVAudioEngine` records the default input on its own track.
+- **Bluetooth headsets:** when a call app opens a headset's mic, the headset switches into call mode (for example from 44.1 kHz to 16 kHz). Minutes opens the mic before tapping, and rebuilds the tap if the output device or its sample rate changes, or if the stream stalls. Any gap is filled with silence so the tracks stay in sync.
+- **On stop:** both tracks are resampled to 48 kHz, aligned by their start times, mixed and encoded as AAC. Each track is then transcribed separately and the lines are merged by time.
 
-### Bluetooth headsets
-
-When any app opens a Bluetooth headset's mic, the headset drops into call mode (e.g. 44.1 kHz → 16 kHz)
-and the output device is reconfigured. The app opens the mic first so this settles before tapping,
-and rebuilds the tap if the output device or its sample rate changes, or the stream stalls. Any gap is
-padded with silence so the two tracks stay aligned. The menu bar shows ⚠︎ if the call side never
-produced audio or the mic goes silent for more than 15 s.
-
-## Diagnostics
+To see what the capture is doing, run a self-test. It records for 10 seconds, logs formats, restarts, levels and the saved file, then quits:
 
 ```sh
-open -W --stderr /tmp/cr.log "build/Call Recorder.app" --args --selftest 10   # record 10 s, log, quit
+open -W --stderr /tmp/minutes.log build/Minutes.app --args --selftest 10
 ```
 
-Logs the tap/mic formats, IOProc buffer layout, tap restarts, peak levels and the saved file's duration.
+If permissions get stuck after rebuilding (the ad-hoc signature changes on each build):
+
+```sh
+tccutil reset Microphone io.github.boyanangelov.minutes
+tccutil reset AudioCapture io.github.boyanangelov.minutes
+```
 
 ## Known limitations
 
-- The mic follows the system default input. Switching input mid-call restarts it, and the short gap is padded with silence to keep alignment.
-- Tested only with a Bluetooth headset so far. Built-in mic/speakers should work but haven't been verified.
-- No auto-detection of calls: you start and stop recording yourself.
-- Quitting while a transcript is being generated cancels it (the recording itself is already saved).
+- You start and stop recording yourself; Minutes doesn't detect calls.
+- The mic follows the system default input. Switching input mid-call restarts it, and the short gap is filled with silence.
+- Quitting while a transcript is being made cancels that transcript. The recording itself is already saved.
 
-Recording laws vary: let call participants know you're recording.
+## License
+
+[MIT](LICENSE)

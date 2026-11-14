@@ -22,7 +22,7 @@ final class MicCapture {
         guard format.sampleRate > 0, format.channelCount > 0 else {
             throw CoreAudioError(what: "no microphone input available", status: -1)
         }
-        NSLog("CallRecorder: mic format %@", format.description)
+        NSLog("Minutes: mic format %@", format.description)
         fileFormat = format
         file = try AVAudioFile(forWriting: url, settings: format.settings,
                                commonFormat: format.commonFormat, interleaved: format.isInterleaved)
@@ -45,7 +45,7 @@ final class MicCapture {
             throw CoreAudioError(what: "no microphone input available", status: -1)
         }
         converter = format == fileFormat ? nil : AVAudioConverter(from: format, to: fileFormat)
-        if converter != nil { NSLog("CallRecorder: mic now %@, converting to %@", format.description, fileFormat.description) }
+        if converter != nil { NSLog("Minutes: mic now %@, converting to %@", format.description, fileFormat.description) }
 
         // The tap block runs on a non-realtime thread, so writing synchronously is fine.
         input.installTap(onBus: 0, bufferSize: 4096, format: format) { [weak self] buffer, when in
@@ -59,14 +59,14 @@ final class MicCapture {
                     let elapsed = AVAudioTime.seconds(forHostTime: when.hostTime) - AVAudioTime.seconds(forHostTime: self.firstHostTime)
                     let gap = Int64(elapsed * fileFormat.sampleRate) - self.framesWritten
                     if gap > Int64(fileFormat.sampleRate * 0.2) {
-                        NSLog("CallRecorder: padding %.2fs of silence in mic", Double(gap) / fileFormat.sampleRate)
+                        NSLog("Minutes: padding %.2fs of silence in mic", Double(gap) / fileFormat.sampleRate)
                         try self.writeSilence(frames: gap, to: file, format: fileFormat)
                     }
                 }
                 try file.write(from: out)
                 self.framesWritten += Int64(out.frameLength)
             } catch {
-                NSLog("CallRecorder: mic write failed: \(error)")
+                NSLog("Minutes: mic write failed: \(error)")
             }
         }
         engine.prepare()
@@ -94,7 +94,7 @@ final class MicCapture {
             status.pointee = .haveData
             return buffer
         }
-        if let error { NSLog("CallRecorder: mic convert failed: \(error)") }
+        if let error { NSLog("Minutes: mic convert failed: \(error)") }
         return out.frameLength > 0 ? out : nil
     }
 
@@ -115,10 +115,10 @@ final class MicCapture {
 
     private func restartAfterDeviceChange() {
         guard file != nil else { return }
-        NSLog("CallRecorder: input device changed, restarting mic capture")
+        NSLog("Minutes: input device changed, restarting mic capture")
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
-        do { try installAndStart() } catch { NSLog("CallRecorder: mic restart failed: \(error)") }
+        do { try installAndStart() } catch { NSLog("Minutes: mic restart failed: \(error)") }
     }
 
     func stop() {

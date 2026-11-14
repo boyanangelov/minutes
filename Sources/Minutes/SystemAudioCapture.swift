@@ -39,9 +39,9 @@ final class SystemAudioCapture {
     private let lastCallbackLock = NSLock()
     private var lastCallback = Date()
 
-    private let controlQueue = DispatchQueue(label: "callrecorder.system.control")
-    private let ioQueue = DispatchQueue(label: "callrecorder.system.io", qos: .userInitiated)
-    private let writeQueue = DispatchQueue(label: "callrecorder.system.write", qos: .utility)
+    private let controlQueue = DispatchQueue(label: "minutes.system.control")
+    private let ioQueue = DispatchQueue(label: "minutes.system.io", qos: .userInitiated)
+    private let writeQueue = DispatchQueue(label: "minutes.system.write", qos: .utility)
 
     func start(writingTo url: URL) throws {
         try controlQueue.sync {
@@ -79,7 +79,7 @@ final class SystemAudioCapture {
         // 1. Tap of all processes' output, mixed down to stereo. Audio keeps playing normally.
         let tapDescription = CATapDescription(stereoGlobalTapButExcludeProcesses: [])
         tapDescription.uuid = UUID()
-        tapDescription.name = "Call Recorder"
+        tapDescription.name = "Minutes"
         tapDescription.isPrivate = true
         tapDescription.muteBehavior = .unmuted
         try caCheck(AudioHardwareCreateProcessTap(tapDescription, &tapID), "create system audio tap")
@@ -93,8 +93,8 @@ final class SystemAudioCapture {
         // 3. A private aggregate device that contains the tap, clocked by the current output device.
         let outputUID = try defaultOutputDeviceUID()
         let description: [String: Any] = [
-            kAudioAggregateDeviceNameKey: "Call Recorder Tap",
-            kAudioAggregateDeviceUIDKey: "local.callrecorder.aggregate.\(UUID().uuidString)",
+            kAudioAggregateDeviceNameKey: "Minutes Tap",
+            kAudioAggregateDeviceUIDKey: "io.github.boyanangelov.minutes.aggregate.\(UUID().uuidString)",
             kAudioAggregateDeviceMainSubDeviceKey: outputUID,
             kAudioAggregateDeviceIsPrivateKey: true,
             kAudioAggregateDeviceIsStackedKey: false,
@@ -115,7 +115,7 @@ final class SystemAudioCapture {
         var rateAddr = caAddress(kAudioDevicePropertyNominalSampleRate)
         if AudioObjectGetPropertyData(aggregateID, &rateAddr, 0, nil, &rateSize, &deviceRate) == noErr, deviceRate > 0 {
             if deviceRate != asbd.mSampleRate {
-                NSLog("CallRecorder: tap reports %.0f Hz, aggregate runs at %.0f Hz; using the latter",
+                NSLog("Minutes: tap reports %.0f Hz, aggregate runs at %.0f Hz; using the latter",
                       asbd.mSampleRate, deviceRate)
             }
             asbd.mSampleRate = deviceRate
@@ -123,7 +123,7 @@ final class SystemAudioCapture {
         guard let fmt = AVAudioFormat(streamDescription: &asbd) else {
             throw CoreAudioError(what: "unsupported tap format", status: -1)
         }
-        NSLog("CallRecorder: system stream format %@", fmt.description)
+        NSLog("Minutes: system stream format %@", fmt.description)
         tapFormat = fmt
         loggedLayout = false
         if let fileFormat, fileFormat != fmt {
@@ -166,7 +166,7 @@ final class SystemAudioCapture {
         guard Date().timeIntervalSince(lastRestart) > 1.0 else { return }
         lastRestart = Date()
         restarts += 1
-        NSLog("CallRecorder: restarting system tap (%@)", reason)
+        NSLog("Minutes: restarting system tap (%@)", reason)
         tearDownTap()
         removeRateListener()
         installRateListener()
@@ -175,7 +175,7 @@ final class SystemAudioCapture {
             try startDevice()
         } catch {
             // Leave it torn down; the watchdog will try again.
-            NSLog("CallRecorder: system tap restart failed: \(error)")
+            NSLog("Minutes: system tap restart failed: \(error)")
             tearDownTap()
             markCallback()
         }
@@ -256,7 +256,7 @@ final class SystemAudioCapture {
         if !loggedLayout {
             loggedLayout = true
             let layout = buffers.map { "\($0.mNumberChannels)ch/\($0.mDataByteSize)B" }.joined(separator: ", ")
-            NSLog("CallRecorder: system IOProc buffers [%@], using last %d", layout, expected)
+            NSLog("Minutes: system IOProc buffers [%@], using last %d", layout, expected)
         }
         guard buffers.count >= expected else { return }
         let first = buffers.count - expected
@@ -291,7 +291,7 @@ final class SystemAudioCapture {
                     let expectedFrames = Int64(elapsed * fileFormat.sampleRate)
                     let gap = expectedFrames - self.framesWritten
                     if gap > Int64(fileFormat.sampleRate * 0.2) {
-                        NSLog("CallRecorder: padding %.2fs of silence in call audio", Double(gap) / fileFormat.sampleRate)
+                        NSLog("Minutes: padding %.2fs of silence in call audio", Double(gap) / fileFormat.sampleRate)
                         try self.writeSilence(frames: gap, to: file, format: fileFormat)
                         // Gaps in quick succession mean the stream runs slower than its declared
                         // rate (stale device format), not a one-off hiccup: rebuild the tap.
@@ -306,7 +306,7 @@ final class SystemAudioCapture {
                 try file.write(from: out)
                 self.framesWritten += Int64(out.frameLength)
             } catch {
-                NSLog("CallRecorder: system write failed: \(error)")
+                NSLog("Minutes: system write failed: \(error)")
             }
         }
     }
